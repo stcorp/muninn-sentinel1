@@ -488,14 +488,15 @@ class EOFProduct(Sentinel1Product):
                 with open(filepath) as hdrfile:
                     return parse(hdrfile).getroot()
         else:
+            ns = self.xml_namespace
             if self.zipped:
                 with zipfile.ZipFile(filepath) as zproduct:
                     eofpath = os.path.splitext(os.path.basename(filepath))[0] + ".EOF"
                     with zproduct.open(eofpath) as eoffile:
-                        return parse(eoffile).getroot().find("./Earth_Explorer_Header")
+                        return parse(eoffile).getroot().find("./Earth_Explorer_Header", ns)
             else:
                 with open(filepath) as eoffile:
-                    return parse(eoffile).getroot().find("./Earth_Explorer_Header")
+                    return parse(eoffile).getroot().find("./Earth_Explorer_Header", ns)
 
     def analyze(self, paths, filename_only=False):
         if self.split and not self.zipped:
