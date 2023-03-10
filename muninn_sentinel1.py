@@ -147,6 +147,17 @@ L2_PRODUCT_TYPES = [
     'WV_OCN__2A', 'WV_OCN__2S',
     ]
 
+ETAD_PRODUCT_TYPES = [
+    'EW_ETA__AX',
+    'IW_ETA__AX',
+    'S1_ETA__AX',
+    'S2_ETA__AX',
+    'S3_ETA__AX',
+    'S4_ETA__AX',
+    'S5_ETA__AX',
+    'S6_ETA__AX',
+    ]
+
 AUX_SAFE_PRODUCT_TYPES = [
     'AUX_CAL',
     'AUX_INS',
@@ -272,6 +283,8 @@ class SAFEProduct(Sentinel1Product):
                 ns["s1sar"] = "http://www.esa.int/safe/sentinel-1.0/sentinel-1/sar/level-1"
             elif properties.sentinel1.processing_level == 2:
                 ns["s1sar"] = "http://www.esa.int/safe/sentinel-1.0/sentinel-1/sar/level-2"
+        elif properties.sentinel1.product_type == "ETA":
+            ns["s1sar"] = "http://www.esa.int/safe/sentinel-1.0/sentinel-1/sar/level-1"
         acquisition_period = root.find(".//safe:acquisitionPeriod", ns)
         core = properties.core
         core.validity_start = parse_datetime(acquisition_period.find("./safe:startTime", ns).text)
@@ -290,7 +303,8 @@ class SAFEProduct(Sentinel1Product):
             sentinel1.orbit_direction = orbit_pass.text.lower()
         sentinel1.instr_conf_id = int(root.find(".//s1sar:instrumentConfigurationID", ns).text)
         downlinks = root.findall(".//safe:resource[@name='Downlinked Stream'][@role='Raw Data']/safe:processing", ns)
-        sentinel1.downlink_date = max([parse_datetime(x.get("stop")) for x in downlinks])
+        if downlinks:
+            sentinel1.downlink_date = max([parse_datetime(x.get("stop")) for x in downlinks])
         sentinel1.processing_facility = processing.find("./safe:facility", ns).get("site")
         software = processing.find("./safe:facility/safe:software", ns)
         if software is not None:
@@ -536,6 +550,7 @@ _product_types = dict(
     [(product_type, SAFEProduct(product_type)) for product_type in L0_PRODUCT_TYPES] +
     [(product_type, SAFEProduct(product_type)) for product_type in L1_PRODUCT_TYPES] +
     [(product_type, SAFEProduct(product_type)) for product_type in L2_PRODUCT_TYPES] +
+    [(product_type, SAFEProduct(product_type)) for product_type in ETAD_PRODUCT_TYPES] +
     [(product_type, AUXProduct(product_type)) for product_type in AUX_SAFE_PRODUCT_TYPES] +
     [(product_type, EOFProduct(product_type)) for product_type in AUX_EOF_PRODUCT_TYPES]
 )
