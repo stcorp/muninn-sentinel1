@@ -169,6 +169,8 @@ AUX_SAFE_PRODUCT_TYPES = [
     'AUX_WND',
     'AUX_ITC',
     'AUX_SCF',
+    'AUX_TEC',
+    'AUX_TRO',
     ]
 
 AUX_EOF_PRODUCT_TYPES = [
