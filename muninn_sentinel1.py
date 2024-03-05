@@ -164,6 +164,7 @@ AUX_SAFE_PRODUCT_TYPES = [
     'AUX_PP1',
     'AUX_PP2',
     'AUX_SCS',
+    'AUX_ML2',
     'AUX_ICE',
     'AUX_WAV',
     'AUX_WND',
