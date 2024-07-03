@@ -309,7 +309,9 @@ class SAFEProduct(Sentinel1Product):
         if downlinks:
             sentinel1.downlink_date = max([parse_datetime(x.get("stop")) for x in downlinks])
         sentinel1.processing_facility = processing.find("./safe:facility", ns).get("site")
-        software = processing.find("./safe:facility/safe:software", ns)
+        software = processing.find("./safe:software", ns)
+        if software is None:
+            software = processing.find("./safe:facility/safe:software", ns)
         if software is not None:
             sentinel1.processor_name = software.get("name")
             sentinel1.processor_version = software.get("version")
