@@ -1,5 +1,6 @@
 import os
 import re
+import json
 import tarfile
 import zipfile
 from datetime import datetime
@@ -157,6 +158,10 @@ ETAD_PRODUCT_TYPES = [
     'S5_ETA__AX',
     'S6_ETA__AX',
     ]
+
+RVL_PRODUCT_TYPES = [
+    'IW_RVC__2S',
+]
 
 AUX_SAFE_PRODUCT_TYPES = [
     'AUX_CAL',
@@ -552,11 +557,99 @@ class EOFProduct(Sentinel1Product):
         return properties
 
 
+class RVLProduct(Sentinel1Product):
+
+    def __init__(self, product_type):
+        self.product_type = product_type
+        pattern = [
+            r"(?P<mission>S1(_|A|B|C|D))",
+            r"(?P<product_type>%s)(?P<polarisation>.{2})" % product_type,
+            r"(?P<validity_start>[\dT]{15})",
+            r"(?P<validity_stop>[\dT]{15})",
+            r"(?P<absolute_orbit>[\d]{6})",
+            r"(?P<datatake_id>.{6})",
+            r"(?P<crc>.{6})",
+        ]
+        self.filename_pattern = "_".join(pattern) + r"\.nc$"
+
+    def archive_path(self, properties):
+        name_attrs = self.parse_filename(properties.core.physical_name)
+        mission = name_attrs['mission']
+        if mission[2] == "_":
+            mission = mission[0:2]
+        return os.path.join(
+            mission,
+            name_attrs['product_type'],
+            name_attrs['validity_start'][0:4],
+            name_attrs['validity_start'][4:6],
+            name_attrs['validity_start'][6:8],
+        )
+
+    def _analyze_netcdf(self, filepath, properties):
+        try:
+            import coda
+        except ImportError:
+            return
+        with coda.open(filepath) as pf:
+            properties.core.validity_start = datetime.strptime(coda.fetch(pf, "@time_coverage_start"),
+                                                               "%Y-%m-%dT%H:%M:%S.%fZ")
+            properties.core.validity_stop = datetime.strptime(coda.fetch(pf, "@time_coverage_end"),
+                                                              "%Y-%m-%dT%H:%M:%S.%fZ")
+            properties.core.creation_date = datetime.strptime(coda.fetch(pf, "@date_created"),
+                                                              "%Y-%m-%dT%H:%M:%S.%fZ")
+            footprint = json.loads(coda.fetch(pf, "@footprint"))
+            assert footprint["type"] == "FeatureCollection"
+            polygons = MultiPolygon()
+            for feature in footprint["features"]:
+                coordinates = feature["geometry"]["coordinates"][0]
+                polygons.append(Polygon([LinearRing([Point(float(c[0]), float(c[1])) for c in coordinates])]))
+            if len(polygons) == 1:
+                properties.core.footprint = polygons[0]
+            else:
+                properties.core.footprint = polygons
+            properties.sentinel1.relative_orbit = int(coda.fetch(pf, "@relative_orbit")[0])
+            properties.sentinel1.orbit_direction = coda.fetch(pf, "@orbit_direction")
+            properties.sentinel1.processing_facility = coda.fetch(pf, "@processing_center")
+            properties.sentinel1.processor_name = coda.fetch(pf, "@processor_name")
+            properties.sentinel1.processor_version = coda.fetch(pf, "@processor_version")
+            properties.sentinel1.cycle = int(coda.fetch(pf, "@cycle")[0])
+
+    def analyze(self, paths, filename_only=False):
+        inpath = paths[0]
+        name_attrs = self.parse_filename(inpath)
+
+        properties = Struct()
+
+        core = properties.core = Struct()
+        core.product_name = os.path.splitext(os.path.basename(inpath))[0]
+        core.validity_start = datetime.strptime(name_attrs['validity_start'], "%Y%m%dT%H%M%S")
+        core.validity_stop = datetime.strptime(name_attrs['validity_stop'], "%Y%m%dT%H%M%S")
+
+        sentinel1 = properties.sentinel1 = Struct()
+        sentinel1.mission = name_attrs['mission']
+        if sentinel1.mission[2] == "_":
+            sentinel1.mission = sentinel1.mission[0:2]
+        sentinel1.mode_beam = self.product_type[0:2]
+        sentinel1.mode = sentinel1.mode_beam
+        sentinel1.product_type = self.product_type[3:6]
+        sentinel1.processing_level = int(self.product_type[8:9])
+        sentinel1.product_class = self.product_type[9:10]
+        sentinel1.polarisation = name_attrs['polarisation']
+        sentinel1.absolute_orbit = int(name_attrs['absolute_orbit'])
+        sentinel1.datatake_id = int(name_attrs['datatake_id'], 16)
+
+        if not filename_only:
+            self._analyze_netcdf(inpath, properties)
+
+        return properties
+
+
 _product_types = dict(
     [(product_type, SAFEProduct(product_type)) for product_type in L0_PRODUCT_TYPES] +
     [(product_type, SAFEProduct(product_type)) for product_type in L1_PRODUCT_TYPES] +
     [(product_type, SAFEProduct(product_type)) for product_type in L2_PRODUCT_TYPES] +
     [(product_type, SAFEProduct(product_type)) for product_type in ETAD_PRODUCT_TYPES] +
+    [(product_type, RVLProduct(product_type)) for product_type in RVL_PRODUCT_TYPES] +
     [(product_type, AUXProduct(product_type)) for product_type in AUX_SAFE_PRODUCT_TYPES] +
     [(product_type, EOFProduct(product_type)) for product_type in AUX_EOF_PRODUCT_TYPES]
 )
