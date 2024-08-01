@@ -313,7 +313,9 @@ class SAFEProduct(Sentinel1Product):
         downlinks = root.findall(".//safe:resource[@name='Downlinked Stream'][@role='Raw Data']/safe:processing", ns)
         if downlinks:
             sentinel1.downlink_date = max([parse_datetime(x.get("stop")) for x in downlinks])
-        sentinel1.processing_facility = processing.find("./safe:facility", ns).get("site")
+        facility = processing.find("./safe:facility", ns)
+        if facility is not None:
+            sentinel1.processing_facility = facility.get("site")
         software = processing.find("./safe:software", ns)
         if software is None:
             software = processing.find("./safe:facility/safe:software", ns)
