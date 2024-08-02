@@ -240,6 +240,19 @@ class Sentinel1Product(object):
             return False
         return re.match(self.filename_pattern, os.path.basename(paths[0])) is not None
 
+    def archive_path(self, properties):
+        name_attrs = self.parse_filename(properties.core.physical_name)
+        mission = name_attrs['mission']
+        if mission[2] == "_":
+            mission = mission[0:2]
+        return os.path.join(
+            mission,
+            self.product_type,
+            name_attrs['validity_start'][0:4],
+            name_attrs['validity_start'][4:6],
+            name_attrs['validity_start'][6:8],
+        )
+
 
 class SAFEProduct(Sentinel1Product):
 
@@ -259,19 +272,6 @@ class SAFEProduct(Sentinel1Product):
             self.filename_pattern = "_".join(pattern) + r"\.SAFE\.zip$"
         else:
             self.filename_pattern = "_".join(pattern) + r"\.SAFE$"
-
-    def archive_path(self, properties):
-        name_attrs = self.parse_filename(properties.core.physical_name)
-        mission = name_attrs['mission']
-        if mission[2] == "_":
-            mission = mission[0:2]
-        return os.path.join(
-            mission,
-            name_attrs['product_type'],
-            name_attrs['validity_start'][0:4],
-            name_attrs['validity_start'][4:6],
-            name_attrs['validity_start'][6:8],
-        )
 
     def _get_footprint_from_manifest(self, root):
         ns = {"safe": "http://www.esa.int/safe/sentinel-1.0",
@@ -505,19 +505,6 @@ class EOFProduct(Sentinel1Product):
                 return False
             return re.match(self.filename_pattern, os.path.basename(paths[0])) is not None
 
-    def archive_path(self, properties):
-        name_attrs = self.parse_filename(properties.core.physical_name)
-        mission = name_attrs['mission']
-        if mission[2] == "_":
-            mission = mission[0:2]
-        return os.path.join(
-            mission,
-            name_attrs['product_type'],
-            name_attrs['validity_start'][0:4],
-            name_attrs['validity_start'][4:6],
-            name_attrs['validity_start'][6:8],
-        )
-
     def read_xml_header(self, filepath):
         if self.split:
             if self.zipped:
@@ -601,19 +588,6 @@ class RVLProduct(Sentinel1Product):
             r"(?P<crc>.{6})",
         ]
         self.filename_pattern = "_".join(pattern) + r"\.nc$"
-
-    def archive_path(self, properties):
-        name_attrs = self.parse_filename(properties.core.physical_name)
-        mission = name_attrs['mission']
-        if mission[2] == "_":
-            mission = mission[0:2]
-        return os.path.join(
-            mission,
-            name_attrs['product_type'],
-            name_attrs['validity_start'][0:4],
-            name_attrs['validity_start'][4:6],
-            name_attrs['validity_start'][6:8],
-        )
 
     def _analyze_netcdf(self, filepath, properties):
         try:
