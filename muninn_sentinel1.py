@@ -206,10 +206,13 @@ def package_zip(paths, target_filepath):
     with zipfile.ZipFile(target_filepath, "x", zipfile.ZIP_DEFLATED, compresslevel=1) as archive:
         for path in paths:
             rootlen = len(os.path.dirname(path)) + 1
-            for base, dirs, files in os.walk(path):
-                for file in files:
-                    fn = os.path.join(base, file)
-                    archive.write(fn, fn[rootlen:])
+            if os.path.isdir(path):
+                for base, dirs, files in os.walk(path):
+                    for file in files:
+                        fn = os.path.join(base, file)
+                        archive.write(fn, fn[rootlen:])
+            else:
+                archive.write(path, path[rootlen:])
 
 
 class Sentinel1Product(object):
