@@ -201,6 +201,16 @@ def parse_datetime(str):
         return datetime.strptime(str, "%Y-%m-%dT%H:%M:%S")
 
 
+def package_zip(paths, target_filepath):
+    with zipfile.ZipFile(target_filepath, "x", zipfile.ZIP_DEFLATED, compresslevel=1) as archive:
+        for path in paths:
+            rootlen = len(os.path.dirname(path)) + 1
+            for base, dirs, files in os.walk(path):
+                for file in files:
+                    fn = os.path.join(base, file)
+                    archive.write(fn, fn[rootlen:])
+
+
 class Sentinel1Product(object):
 
     def __init__(self, product_type):
@@ -377,6 +387,15 @@ class SAFEProduct(Sentinel1Product):
 
         return properties
 
+    def export_zip(self, archive, properties, target_path, paths):
+        if self.zipped:
+            assert len(paths) == 1, "zipped product should be a single file"
+            copy_path(paths[0], target_path)
+            return os.path.join(target_path, os.path.basename(paths[0]))
+        target_filepath = os.path.join(os.path.abspath(target_path), properties.core.physical_name + ".zip")
+        package_zip(paths, target_filepath)
+        return target_filepath
+
 
 class AUXProduct(SAFEProduct):
 
@@ -427,6 +446,15 @@ class AUXProduct(SAFEProduct):
             self._analyze_manifest(self.read_xml_component(inpath, "manifest.safe"), properties)
 
         return properties
+
+    def export_zip(self, archive, properties, target_path, paths):
+        if self.zipped:
+            assert len(paths) == 1, "zipped product should be a single file"
+            copy_path(paths[0], target_path)
+            return os.path.join(target_path, os.path.basename(paths[0]))
+        target_filepath = os.path.join(os.path.abspath(target_path), properties.core.physical_name + ".zip")
+        package_zip(paths, target_filepath)
+        return target_filepath
 
 
 class EOFProduct(Sentinel1Product):
