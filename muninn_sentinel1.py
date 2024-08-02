@@ -9,6 +9,7 @@ from xml.etree.ElementTree import parse
 from muninn.schema import Mapping, Text, Integer, Timestamp
 from muninn.geometry import Point, LinearRing, Polygon, MultiPoint, MultiPolygon
 from muninn.struct import Struct
+from muninn.util import copy_path
 
 
 # Namespaces
