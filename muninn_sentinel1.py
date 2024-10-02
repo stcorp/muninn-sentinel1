@@ -149,6 +149,10 @@ L2_PRODUCT_TYPES = [
     'WV_OCN__2A', 'WV_OCN__2S',
     ]
 
+OBS_PRODUCT_TYPES = [
+    '___OBS__SS',
+    ]
+
 ETAD_PRODUCT_TYPES = [
     'EW_ETA__AX',
     'IW_ETA__AX',
@@ -653,12 +657,71 @@ class RVLProduct(Sentinel1Product):
         return properties
 
 
+class OBSProduct(SAFEProduct):
+
+    def __init__(self, product_type, zipped=False):
+        self.product_type = product_type
+        self.zipped = zipped
+        pattern = [
+            r"^(?P<mission>S1(_|A|B|C|D))",
+            r"(?P<product_type>%s)__" % product_type,
+            r"(?P<validity_start>[\dT]{15})",
+            r"(?P<validity_stop>[\dT]{15})",
+            r"(?P<absolute_orbit>[\d]{6})",
+            r"(?P<crc>.{4})",
+        ]
+        if zipped:
+            self.filename_pattern = "_".join(pattern) + r".zip$"
+        else:
+            self.filename_pattern = "_".join(pattern) + r"$"
+
+    def archive_path(self, properties):
+        name_attrs = self.parse_filename(properties.core.physical_name)
+        mission = name_attrs['mission']
+        if mission[2] == "_":
+            mission = mission[0:2]
+        return os.path.join(
+            mission,
+            "OBS",  # use short product type
+            name_attrs['validity_start'][0:4],
+            name_attrs['validity_start'][4:6],
+            name_attrs['validity_start'][6:8],
+        )
+
+    def analyze(self, paths, filename_only=False):
+        inpath = paths[0]
+        name_attrs = self.parse_filename(inpath)
+
+        properties = Struct()
+
+        core = properties.core = Struct()
+        core.product_name = os.path.basename(inpath)
+        core.validity_start = datetime.strptime(name_attrs['validity_start'], "%Y%m%dT%H%M%S")
+        core.validity_stop = datetime.strptime(name_attrs['validity_stop'], "%Y%m%dT%H%M%S")
+
+        sentinel1 = properties.sentinel1 = Struct()
+        sentinel1.mission = name_attrs['mission']
+        assert sentinel1.mission[2] != '_'
+        sentinel1.product_type = "OBS"
+        sentinel1.absolute_orbit = int(name_attrs['absolute_orbit'])
+
+        if not filename_only:
+            root = self.read_xml_component(inpath, "obs-measurements.xml")
+            sentinel1.absolute_orbit = \
+                int(root.find("./obsGenericInformation/processingInformation/absoluteOrbitNumber").text)
+            sentinel1.relative_orbit = \
+                int(root.find("./obsGenericInformation/processingInformation/relativeOrbitNumber").text)
+
+        return properties
+
+
 _product_types = dict(
     [(product_type, SAFEProduct(product_type)) for product_type in L0_PRODUCT_TYPES] +
     [(product_type, SAFEProduct(product_type)) for product_type in L1_PRODUCT_TYPES] +
     [(product_type, SAFEProduct(product_type)) for product_type in L2_PRODUCT_TYPES] +
     [(product_type, SAFEProduct(product_type)) for product_type in ETAD_PRODUCT_TYPES] +
     [(product_type, RVLProduct(product_type)) for product_type in RVL_PRODUCT_TYPES] +
+    [(product_type, OBSProduct(product_type)) for product_type in OBS_PRODUCT_TYPES] +
     [(product_type, AUXProduct(product_type)) for product_type in AUX_SAFE_PRODUCT_TYPES] +
     [(product_type, EOFProduct(product_type)) for product_type in AUX_EOF_PRODUCT_TYPES]
 )
