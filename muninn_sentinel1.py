@@ -165,8 +165,8 @@ ETAD_PRODUCT_TYPES = [
     ]
 
 RVL_PRODUCT_TYPES = [
+    'EW_RVC__2S',
     'IW_RVC__2S',
-    'WV_RVC__2S',
 ]
 
 AUX_SAFE_PRODUCT_TYPES = [
