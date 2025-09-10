@@ -185,6 +185,10 @@ AUX_SAFE_PRODUCT_TYPES = [
     'AUX_TRO',
     ]
 
+AISAUX_PRODUCT_TYPES = [
+    'AISAUX',
+    ]
+
 AUX_EOF_PRODUCT_TYPES = [
     'AMH_ERRMAT',
     'AMV_ERRMAT',
@@ -196,7 +200,7 @@ AUX_EOF_PRODUCT_TYPES = [
     ]
 
 MUNINN_PRODUCT_TYPES = L0_PRODUCT_TYPES + L1_PRODUCT_TYPES + L2_PRODUCT_TYPES + AUX_SAFE_PRODUCT_TYPES + \
-    AUX_EOF_PRODUCT_TYPES
+    AISAUX_PRODUCT_TYPES + AUX_EOF_PRODUCT_TYPES
 
 
 def parse_datetime(str):
@@ -457,14 +461,65 @@ class AUXProduct(SAFEProduct):
 
         return properties
 
-    def export_zip(self, archive, properties, target_path, paths):
+
+class AISAUXProduct(SAFEProduct):
+
+    def __init__(self, product_type, zipped=False):
+        self.product_type = product_type
+        self.zipped = zipped
+        pattern = [
+            r"^(?P<mission>S1(_|A|B|C|D))",
+            r"(?P<product_type>%s)" % product_type,
+            r"(?P<validity_start>[\dT]{15})",
+            r"(?P<validity_stop>[\dT]{15})",
+            r"(?P<crc>.{4})",
+        ]
+        if zipped:
+            self.filename_pattern = "_".join(pattern) + r"\.SAFE\.zip$"
+        else:
+            self.filename_pattern = "_".join(pattern) + r"\.SAFE$"
+
+    def _analyze_manifest(self, root, properties):
+        ns = {"safe": "http://www.esa.int/safe/sentinel-1.0",
+              "s1ais": "http://www.esa.int/safe/sentinel-1.0/sentinel-1/sentinel-1/ais"}
+        acquisition_period = root.find(".//safe:acquisitionPeriod", ns)
+        core = properties.core
+        core.validity_start = parse_datetime(acquisition_period.find("./safe:startTime", ns).text)
+        core.validity_stop = parse_datetime(acquisition_period.find("./safe:stopTime", ns).text)
+        processing = root.find(".//xmlData/safe:processing", ns)
+        core.creation_date = parse_datetime(processing.get("stop"))
+        core.footprint = self._get_footprint_from_manifest(root)
+
+        sentinel1 = properties.sentinel1
+        sentinel1.processing_facility = root.find(".//safe:facility", ns).get("site")
+        software = processing.find("./safe:software", ns)
+        if software is not None:
+            sentinel1.processor_name = software.get("name")
+            sentinel1.processor_version = software.get("version")
+
+    def analyze(self, paths, filename_only=False):
+        inpath = paths[0]
+        name_attrs = self.parse_filename(inpath)
+
+        properties = Struct()
+
+        core = properties.core = Struct()
+        core.product_name = os.path.splitext(os.path.basename(inpath))[0]
         if self.zipped:
-            assert len(paths) == 1, "zipped product should be a single file"
-            copy_path(paths[0], target_path)
-            return os.path.join(target_path, os.path.basename(paths[0]))
-        target_filepath = os.path.join(os.path.abspath(target_path), properties.core.physical_name + ".zip")
-        package_zip(paths, target_filepath)
-        return target_filepath
+            core.product_name = os.path.splitext(core.product_name)[0]
+        core.validity_start = datetime.strptime(name_attrs['validity_start'], "%Y%m%dT%H%M%S")
+        core.validity_stop = datetime.strptime(name_attrs['validity_stop'], "%Y%m%dT%H%M%S")
+
+        sentinel1 = properties.sentinel1 = Struct()
+        sentinel1.mission = name_attrs['mission']
+        if sentinel1.mission[2] == "_":
+            sentinel1.mission = sentinel1.mission[0:2]
+
+        if not filename_only:
+            # Update properties based on manifest content
+            self._analyze_manifest(self.read_xml_component(inpath, "manifest.safe"), properties)
+
+        return properties
 
 
 class EOFProduct(Sentinel1Product):
@@ -724,6 +779,7 @@ _product_types = dict(
     [(product_type, RVLProduct(product_type)) for product_type in RVL_PRODUCT_TYPES] +
     [(product_type, OBSProduct(product_type)) for product_type in OBS_PRODUCT_TYPES] +
     [(product_type, AUXProduct(product_type)) for product_type in AUX_SAFE_PRODUCT_TYPES] +
+    [(product_type, AISAUXProduct(product_type)) for product_type in AISAUX_PRODUCT_TYPES] +
     [(product_type, EOFProduct(product_type)) for product_type in AUX_EOF_PRODUCT_TYPES]
 )
 
